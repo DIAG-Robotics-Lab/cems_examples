@@ -4,6 +4,8 @@ A collection of small Python scripts that simulate and plot the behaviour of
 controlled electric motors and second-order systems, following the CEMS course
 notes. Every script has its **parameters at the top of the file**, so you can
 change a value, run the script again and immediately see how the response changes.
+Every script shows its result as an **animation**: the curves are drawn
+progressively over time.
 
 New scripts will be added to this folder over time.
 
@@ -11,23 +13,16 @@ New scripts will be added to this folder over time.
 
 ## Contents
 
-- [CEMS – Control Examples in Python](#cems--control-examples-in-python)
-  - [Contents](#contents)
-  - [1. What you need](#1-what-you-need)
-  - [2. Installing Python](#2-installing-python)
-    - [Windows](#windows)
-    - [macOS](#macos)
-    - [Linux](#linux)
-  - [3. Using the terminal](#3-using-the-terminal)
-  - [4. Getting the scripts](#4-getting-the-scripts)
-  - [5. Installing the required libraries](#5-installing-the-required-libraries)
-    - [Step 5.1 (recommended): create a virtual environment](#step-51-recommended-create-a-virtual-environment)
-    - [Step 5.2: install the libraries](#step-52-install-the-libraries)
-  - [6. Running a script](#6-running-a-script)
-    - [Running from VS Code](#running-from-vs-code)
-    - [Running from IDLE](#running-from-idle)
-  - [7. Changing the parameters](#7-changing-the-parameters)
-  - [8. Troubleshooting](#8-troubleshooting)
+1. [What you need](#1-what-you-need)
+2. [Installing Python](#2-installing-python)
+3. [Using the terminal](#3-using-the-terminal)
+4. [Getting the scripts](#4-getting-the-scripts)
+5. [Installing the required libraries](#5-installing-the-required-libraries)
+6. [Running a script](#6-running-a-script)
+7. [Changing the parameters](#7-changing-the-parameters)
+8. [The scripts](#8-the-scripts)
+9. [Troubleshooting](#9-troubleshooting)
+10. [Adding new scripts](#10-adding-new-scripts)
 
 ---
 
@@ -118,20 +113,23 @@ Tips:
 
 ## 4. Getting the scripts
 
-Download or copy this folder somewhere easy to find, e.g. your Desktop. It looks like this:
+Download or copy this folder somewhere easy to find, e.g. your Desktop.
+This is its whole content:
 
 ```
-CEMS-control-examples/
-├── README.md                  ← this file
-├── requirements.txt           ← list of the libraries the scripts need
-├── motor_p_pi.py              ← motor speed control with proportional/integral action, animated
-└── second_order_system.py     ← second-order step/ramp response, animated
+pkg/
+├── README.md                ← this file
+├── requirements.txt         ← list of the libraries the scripts need
+├── notes.pdf                ← course lecture notes
+├── motor_p_pi.py            ← motor speed control, P vs PI (Chapter 2)
+├── second_order_system.py   ← second-order step/ramp response (Chapter 3)
+└── feedforward.py           ← feedback vs feedforward (Chapter 5)
 ```
 
 Then open a terminal and move into the folder, for example:
 
 ```
-cd Desktop/cems_examples
+cd Desktop/pkg
 ```
 
 Type `dir` (Windows) or `ls` (macOS/Linux): you should see the `.py` files listed.
@@ -202,13 +200,15 @@ From the terminal, inside the project folder (with `(.venv)` active if you creat
 
 | Windows | macOS / Linux |
 |---------|---------------|
-| `python second_order.py` | `python3 second_order.py` |
+| `python second_order_system.py` | `python3 second_order_system.py` |
 
 What happens:
 
 1. Python reads the file from top to bottom.
-2. Some numbers (poles, damping, errors…) are printed in the terminal.
-3. A **plot window** opens. You can zoom, pan and save the figure with the toolbar buttons.
+2. Some scripts print numbers (errors, RMS values…) in the terminal.
+3. A **plot window** opens and the **animation** starts: the curves are drawn
+   progressively. When it reaches the end it starts again from the beginning.
+   You can zoom, pan and save the figure with the toolbar buttons.
 4. The script ends when you **close the plot window**. Until then, the terminal stays busy.
 
 To stop a script that is running, press `Ctrl + C` in the terminal.
@@ -262,18 +262,153 @@ Undo your change (`Ctrl + Z`) and try again.
 
 ---
 
+## 8. The scripts
 
-## 8. Troubleshooting
+All scripts model a motor with inertia **J** and viscous friction **B**, whose
+speed ω is controlled by a P or PI controller:
+
+```
+            1
+P(s) = ─────────          C_P(s) = kp          C_PI(s) = kp + ki / s
+        J s + B
+```
+
+All scripts share two animation parameters: `n_frames` (number of frames) and
+`interval` (milliseconds between frames: larger means slower).
+
+### `motor_p_pi.py` – motor speed control, P vs PI (Chapter 2)
+
+Compares three cases, drawn as an animation:
+
+- **P control without friction** (ideal plant 1/(Js)), no load
+- **P control with friction and a load torque** τ_l: it shows a steady-state error
+- **PI control with friction and load**: the integral action removes the error
+
+The upper plot shows the speed, the lower one the **tracking error**
+(reference − speed). The load is **applied at a chosen time** (`t_load`), so you
+can watch the speed drop and the PI controller recover it. The final error of
+each case is printed in the terminal.
+
+| Parameter | Meaning |
+|-----------|---------|
+| `J`, `B`, `kp`, `ki` | System and controller values |
+| `tau_l`, `t_load` | Load torque and the time it is applied |
+| `t_end` | Simulation time [s] |
+| `input_type` | `'step'` or `'ramp'` |
+| `input_gain` | Step amplitude or ramp slope |
+| `selection` | `'p'`, `'pi'` or `'all'` |
+| `n_points` | Simulation resolution (keep it high for fast systems) |
+
+Expected final errors (eqs. 2.21, 2.29, 2.34, 2.55):
+
+| Case | Step | Ramp |
+|---|---|---|
+| P, ideal | 0 | J·A/kp |
+| P, friction + load | (B·A + τ_l)/(B + kp) | keeps growing |
+| PI, friction + load | 0 | B·A/ki |
+
+Things to try: set `input_type = 'ramp'` and see that P control with friction
+loses the ramp, while PI follows it with a small constant error.
+
+### `second_order_system.py` – second-order response (Chapter 3)
+
+Reproduces the transient analysis of the notes. With a PI controller
+the closed loop is a second-order system:
+
+```
+              N(s)                         ki                 kp + B
+W(s) = ─────────────────────      ωn = √ ───── ,      ξ = ──────────
+        s² + 2ξωn s + ωn²                  J                 2 J ωn
+```
+
+Two schemes are compared side by side, drawn as an animation:
+
+- **Standard PI**: N(s) = (kp s + ki)/J. It has a **zero**, which adds overshoot.
+- **PI with relocated proportional action**: N(s) = ωn². It has no zeros.
+
+| Parameter | Meaning |
+|-----------|---------|
+| `J`, `B`, `kp`, `ki` | System and controller values |
+| `input_type` | `'step'` or `'ramp'` |
+| `input_gain` | Step amplitude or ramp slope |
+| `t_end` | Simulation time [s] |
+| `selection` | `'standard'`, `'relocated'` or `'all'` |
+| `compare_damping` | `True` → ignore `kp` and plot one curve per damping value in `xi_list` (like Fig. 3.2 and 3.3) |
+| `xi_list` | Damping values to compare, e.g. `[0.3, 1.0, 2.0]` |
+
+The type of response depends on the damping ξ:
+
+| ξ | Poles | Response |
+|---|-------|----------|
+| 0 < ξ < 1 | complex conjugate, −ξωn ± jωn√(1−ξ²) | **underdamped**: oscillates |
+| ξ = 1 | two coincident real, −ωn | **critically damped**: fastest without oscillations |
+| ξ > 1 | two distinct real | **overdamped**: no oscillations, slower |
+
+Things to try:
+
+- Set `compare_damping = True` and compare the two schemes: the standard one
+  overshoots even when ξ = 1, because of its zero.
+- Increase `ki` and watch ωn grow (faster response, poles further from the origin).
+- Switch to `'ramp'`: the error is B·A/ki for the standard scheme and
+  (B+kp)·A/ki for the relocated one.
+
+### `feedforward.py` – feedback vs feedforward (Chapter 5)
+
+Tracks a **sinusoidal speed reference** with three strategies:
+
+- **Feedback only**: PI controller on the error. It always lags behind a moving reference.
+- **Feedforward only**: the torque is computed from a *model* of the motor,
+  τ_ff = Ĵ·dω_ref/dt + B̂·ω_ref + τ̂_l (eq. 5.9). There is no correction, so any
+  model error remains.
+- **Feedback + feedforward**: the feedforward does most of the work and the
+  feedback corrects what the model gets wrong.
+
+The animation shows speed, tracking error and motor torque. The terminal prints
+the error over the last period and the RMS error of each strategy.
+
+| Parameter | Meaning |
+|-----------|---------|
+| `J`, `B`, `tau_l`, `t_load`, `w0` | **Real** motor: inertia, friction, load torque, load time, initial speed |
+| `J_hat`, `B_hat`, `tau_l_hat` | **Estimates** used by the feedforward (set equal to the real ones for a perfect model) |
+| `kp`, `ki` | Feedback PI gains (`ki = 0` → P only) |
+| `A`, `f`, `phase`, `offset` | Reference ω_ref(t) = offset + A·sin(2πft + phase) |
+| `t_end` | Simulation time [s] |
+| `selection` | `'fb'`, `'ff'`, `'fb+ff'` or `'all'` |
+
+Things to try:
+
+- **Default** (perfect model, ω_ref(0) = 1 ≠ ω(0) = 0): feedforward alone tracks
+  perfectly once the initial error decays slowly with τ = J/B (eq. 5.23 without
+  feedback). Adding feedback makes it decay much faster, with τ = J/(B+kp).
+- **Wrong model**, e.g. `J_hat = 0.03`, `B_hat = 0.05`: feedforward alone keeps a
+  permanent error. Feedback + feedforward still works well.
+- **Unknown load**, `tau_l_hat = 0`: after `t_load` the feedforward-only speed
+  drifts away by τ_l/B, while any scheme with integral feedback recovers.
+- Increase `f`: feedback-only gets worse and worse, while the feedforward doesn't care.
+
+---
+
+## 9. Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
 | `'python' is not recognized…` (Windows) | Use `py` instead of `python`, or reinstall Python with **"Add to PATH"** ticked |
 | `command not found: python` (macOS/Linux) | Use `python3` |
 | `ModuleNotFoundError: No module named 'control'` | The libraries are not installed in the Python you are using. Activate `.venv` and run `pip install -r requirements.txt` again |
-| `can't open file 'motor.py': No such file or directory` | You are in the wrong folder. Use `cd` to go into the project folder and check with `dir` / `ls` |
+| `can't open file 'motor_p_pi.py': No such file or directory` | You are in the wrong folder. Use `cd` to go into the project folder and check with `dir` / `ls` |
 | `SyntaxError` after editing | Check the line shown: a missing quote, a comma instead of a dot, or a changed indentation |
 | No window appears | It may be hidden behind other windows. Check the taskbar/dock |
 | The animation does not move (Spyder / Jupyter) | These show static images by default. Run the script from the terminal, or type `%matplotlib qt` in the console first |
 | The terminal seems stuck | The script is waiting for you to close the plot window |
 
 ---
+
+## 10. Adding new scripts
+
+To keep the collection consistent, each new script should:
+
+- Be a single `.py` file in this folder, with a clear name (e.g. `position_control.py`)
+- Start with a **parameter block** between `# ===` lines, with units and options in the comments
+- Show its result as an animation, with the `n_frames` and `interval` parameters
+- Add any new library to `requirements.txt`
+- Get a short section in [Section 8](#8-the-scripts) of this README
