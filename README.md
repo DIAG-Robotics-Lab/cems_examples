@@ -4,8 +4,9 @@ A collection of small Python scripts that simulate and plot the behaviour of
 controlled electric motors and second-order systems, following the CEMS course
 notes. Every script has its **parameters at the top of the file**, so you can
 change a value, run the script again and immediately see how the response changes.
-Every script shows its result as an **animation**: the curves are drawn
-progressively over time.
+Most scripts show their result as an **animation**: the curves are drawn
+progressively over time. `sampling.py` can do both: static figures ready
+to be saved and used in documents, or an animation.
 
 New scripts will be added to this folder over time.
 
@@ -123,7 +124,8 @@ pkg/
 ├── notes.pdf                ← course lecture notes
 ├── motor_p_pi.py            ← motor speed control, P vs PI (Chapter 2)
 ├── second_order_system.py   ← second-order step/ramp response (Chapter 3)
-└── feedforward.py           ← feedback vs feedforward (Chapter 5)
+├── feedforward.py           ← feedback vs feedforward (Chapter 5)
+└── sampling.py              ← sampling, aliasing and quantization (Chapter 6.1)
 ```
 
 Then open a terminal and move into the folder, for example:
@@ -273,7 +275,7 @@ P(s) = ─────────          C_P(s) = kp          C_PI(s) = kp + 
         J s + B
 ```
 
-All scripts share two animation parameters: `n_frames` (number of frames) and
+All animated scripts share two animation parameters: `n_frames` (number of frames) and
 `interval` (milliseconds between frames: larger means slower).
 
 ### `motor_p_pi.py` – motor speed control, P vs PI (Chapter 2)
@@ -386,6 +388,62 @@ Things to try:
   drifts away by τ_l/B, while any scheme with integral feedback recovers.
 - Increase `f`: feedback-only gets worse and worse, while the feedforward doesn't care.
 
+### `sampling.py` – sampling, aliasing and quantization (Chapter 6.1)
+
+Shows what goes wrong when a continuous signal is turned into numbers. The
+signal is a sum of sinusoids. With `animate = False` (default) it opens four
+separate static figures, one per plot, and can save each of them to a file.
+With `animate = True` the four plots are shown in one window and fs sweeps
+from `fs_max` down to `fs_min`, so you can watch aliasing appear.
+
+- **Time domain** (`time`): the signal, its samples and the signal
+  *reconstructed* from the samples (ideal sinc interpolation and/or zero-order hold).
+  The title turns red when fs < 2·f_max (Shannon-Nyquist, eq. 6.1).
+- **Spectrum** (`spectrum`): each component, the green band 0 … fs/2 that can be
+  represented, and the red **aliases**. Every component above fs/2 folds back to
+  f_alias = |f − fs·round(f/fs)|.
+- **Quantization** (`quantization`): the samples rounded to the 2^n_bits levels
+  of the converter.
+- **Quantization error** (`quantization_error`): always within ±Δ/2
+  (Δ = range / 2^n_bits), with the measured SNR. The ideal value for a
+  full-scale sine is about 6.02·n_bits + 1.76 dB.
+
+With `save_figs = True` the figures are written to `save_dir` as
+`sampling_<plot>_fs<fs>.<format>`, e.g. `figures/sampling_time_fs10.pdf`.
+Since the file name contains fs, running the script with different `fs` values
+does not overwrite the previous figures. Other parameter changes do, so rename
+or move the files you want to keep. In animation mode a GIF is saved instead
+(`sampling_sweep_fs30-3.gif`), which can take a minute: set `save_figs = False`
+if you only want to watch it.
+
+| Parameter | Meaning |
+|-----------|---------|
+| `freqs`, `amps`, `phases` | Components of the signal (lists of the same length) |
+| `t_end` | Displayed time window [s] |
+| `fs` | Sampling frequency [Hz] (static figures) |
+| `animate` | `False` → 4 static figures, `True` → animated sweep of fs |
+| `fs_max`, `fs_min`, `n_frames`, `interval` | Animation: fs range, number of frames, ms between frames |
+| `reconstruction` | `'sinc'`, `'zoh'` or `'both'` |
+| `anti_alias`, `filter_order`, `cutoff_ratio` | Butterworth low-pass before sampling, cut-off = `cutoff_ratio`·fs |
+| `n_bits`, `full_scale` | Bit depth and converter range ±`full_scale` (`None` = automatic) |
+| `save_figs`, `save_dir`, `save_format` | Save the figures (or the GIF), output folder, file format of static figures (`'pdf'`, `'png'`, `'svg'`…) |
+
+Things to try:
+
+- **Aliasing**: compare `fs = 30` (OK) with `fs = 10`. The 7 Hz component looks like a
+  3 Hz one, and the reconstruction is a completely different signal that
+  still passes through every sample.
+- **Exactly at Nyquist**: `freqs = [5.0]`, `amps = [1.0]`, `phases = [0.0]`,
+  `fs = 10`. The title says OK (fs = 2·f), yet every sample falls on a zero
+  crossing and the signal disappears. In practice fs must be clearly **above** 2·f_max.
+- **Anti-aliasing filter**: `anti_alias = True`. The 7 Hz component is attenuated
+  before sampling, so the alias shrinks. Lower `cutoff_ratio` or raise
+  `filter_order` to remove it further: a real filter is not a perfect cut at fs/2.
+- **Bit depth**: change `n_bits` from 2 to 8 and watch the staircase and the SNR.
+  Each extra bit halves Δ and adds about 6 dB.
+- **Saturation**: `full_scale = 0.8` (smaller than the signal) makes the
+  converter clip, and the error grows beyond ±Δ/2.
+
 ---
 
 ## 9. Troubleshooting
@@ -410,5 +468,6 @@ To keep the collection consistent, each new script should:
 - Be a single `.py` file in this folder, with a clear name (e.g. `position_control.py`)
 - Start with a **parameter block** between `# ===` lines, with units and options in the comments
 - Show its result as an animation, with the `n_frames` and `interval` parameters
+  (and, like `sampling.py`, optionally as static figures meant for documents)
 - Add any new library to `requirements.txt`
 - Get a short section in [Section 8](#8-the-scripts) of this README
