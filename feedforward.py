@@ -51,6 +51,11 @@ def dw_ref(t):
     return A * 2 * np.pi * f * np.cos(2 * np.pi * f * t + phase)
 
 
+def ratio(num, den):
+    # Estimate / real value; nan when the real value is 0 (e.g. B = 0)
+    return num / den if den else float('nan')
+
+
 def load(t, value):
     # Step load applied at t_load
     return value * (t >= t_load)
@@ -84,8 +89,8 @@ for mode in modes:
 
 # Print error indicators
 print(f"ω_ref(0) = {w_ref(0):.3f}, ω(0) = {w0:.3f}")
-print(f"Model error: Ĵ/J = {J_hat / J:.2f}, B̂/B = {B_hat / B:.2f}, τ̂_l/τ_l = "
-      f"{tau_l_hat / tau_l if tau_l else float('nan'):.2f}")
+print(f"Model error: Ĵ/J = {ratio(J_hat, J):.2f}, B̂/B = {ratio(B_hat, B):.2f}, τ̂_l/τ_l = "
+      f"{ratio(tau_l_hat, tau_l):.2f}")
 last = t >= t_end - 1 / f   # last reference period
 for mode, (w, e, _) in results.items():
     print(f"  {names[mode]:24s} max|e| last period = {np.abs(e[last]).max():.4f}, "
@@ -115,7 +120,7 @@ for x, val in ((t_load / 2, 0.0), ((t_load + t_end) / 2, tau_l)):
               ha='center', va='bottom', fontsize=11,
               bbox=dict(boxstyle='round', fc='white', alpha=0.7, lw=0))
 ax_e.axhline(0, color='k', lw=0.8)
-ax_w.set_title(f"J_hat/J={J_hat / J:.2f}, B_hat/B={B_hat / B:.2f}, tau_l_hat={tau_l_hat}, "
+ax_w.set_title(f"J_hat/J={ratio(J_hat, J):.2f}, B_hat/B={ratio(B_hat, B):.2f}, tau_l_hat={tau_l_hat}, "
                f"τ_l={tau_l}, ω(0)={w0}, ω_ref(0)={w_ref(0):.2f}")
 ax_w.set_ylabel("Speed [rad/s]")
 ax_e.set_ylabel("Error [rad/s]")
